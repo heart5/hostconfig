@@ -1444,29 +1444,58 @@ class JoplinConfigManager:
         """合并本地配置和Joplin笔记中的配置"""
         # 加载本地所有配置
         local_configs = self.load_all_configs()
-        # 从Joplin笔记中读取配置
-        joplin_configs = self.load_configs_from_joplin_note()
+
+        # 从Joplin笔记中读取配置 - 修复：正确处理返回的元组
+        joplin_result = self.load_configs_from_joplin_note()
+
+        # 检查返回的是元组还是字典
+        if isinstance(joplin_result, tuple) and len(joplin_result) == 2:
+            # 如果是元组，提取第一个元素（配置字典）
+            joplin_collectors, update_records = joplin_result
+        else:
+            # 如果不是元组，可能是其他格式，初始化为空字典
+            joplin_collectors = {}
+            update_records = {}
+
+        # 将 HostConfigCollector 对象转换为配置字典
+        joplin_configs = {}
+        for device_id, collector in joplin_collectors.items():
+            if hasattr(collector, 'config_data') and collector.config_data:
+                joplin_configs[device_id] = collector.config_data
+            else:
+                # 如果没有配置数据，尝试获取
+                try:
+                    config_data = collector.get_config_data()
+                    joplin_configs[device_id] = config_data
+                except:
+                    log.warning(f"无法获取设备 {device_id} 的配置数据")
+
         # 关键新增：将从笔记加载的配置保存到本地
         if joplin_configs:
             self.save_configs_to_local_smart(joplin_configs)
+
         # 重新加载本地配置（可能已经更新）
         local_configs = self.load_all_configs()
+        
         # 合并配置（本地配置优先）
         merged_configs = {}
+
         # 首先添加所有本地配置
         for device_id, config in local_configs.items():
             merged_configs[device_id] = config
-        # 然后添加本地配置（如果不存在于Joplin配置中）
-        for device_id, config in local_configs.items():
+        
+        # 然后添加Joplin配置（如果不存在于本地配置中）
+        for device_id, config in joplin_configs.items():
             if device_id not in merged_configs:
                 merged_configs[device_id] = config
             else:
                 # 如果已经存在，检查收集时间，保留最新的
                 joplin_time = merged_configs[device_id].get("collection_time", "")
                 local_time = config.get("collection_time", "")
-                # 如果本地配置的收集时间更新，则更新合并后的配置
+                # 如果Joplin配置的收集时间更新，则更新合并后的配置
                 if local_time > joplin_time:
                     merged_configs[device_id] = config
+        
         # 保存其他主机的配置到本地（用于下次比较）
         self.save_configs_to_local_smart(merged_configs)
         log.info(f"合并后共有 {len(merged_configs)} 个主机的配置")
