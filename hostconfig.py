@@ -1687,42 +1687,55 @@ class JoplinConfigManager:
                     f"主机《{current_config['system']['device_name']}》的配置无变化"
                 )
                 return True, "配置无变化，无需更新笔记"
+
             # 查找或创建笔记本
             notebook_title = "ewmobile"
             notebook_id = searchnotebook(notebook_title)
             if not notebook_id:
                 notebook_id = jpapi.add_notebook(title=notebook_title)
                 log.info(f"创建新笔记本: {notebook_title}")
+
             # 查找或创建笔记
             note_title = "主机配置对比表"
             existing_notes = searchnotes(note_title, parent_id=notebook_id)
-            # 创建当前主机的 HostConfigCollector
+
+            # 关键修改：使用 merge_all_configs() 获取所有主机配置
+            all_configs = self.merge_all_configs()
+
+            # 将配置字典转换为 HostConfigCollector 对象
+            all_collectors = {}
+            for device_id, config_data in all_configs.items():
+                collector = HostConfigCollector()
+                collector.config_data = config_data
+
+                # 设置设备属性
+                if "system" in config_data:
+                    collector.device_id = config_data["system"].get(
+                        "device_id", device_id
+                    )
+                    collector.device_name = config_data["system"].get(
+                        "device_name", "Unknown"
+                    )
+                    collector.host_user = config_data["system"].get("host_user", "N/A")
+
+                # 设置本地配置文件路径
+                collector.local_config_file = (
+                    self.config_dir / f"{collector.device_id}.json"
+                )
+                all_collectors[device_id] = collector
+
+            # 保存当前主机配置（确保最新）
             current_collector = HostConfigCollector()
             current_collector.config_data = current_config
-            # 从Joplin笔记加载其他主机配置
-            other_collectors, joplin_update_records = (
-                self.load_configs_from_joplin_note()
-            )
-            # 合并所有配置收集器
-            all_collectors = {}
-            # 添加当前主机
-            all_collectors[current_collector.device_id] = current_collector
-            # 添加其他主机（不覆盖当前主机）
-            for device_id, collector in other_collectors.items():
-                if device_id != current_collector.device_id:
-                    all_collectors[device_id] = collector
-            # 保存所有配置到本地
-            saved_count = 0
-            for device_id, collector in all_collectors.items():
-                if collector.save_config_to_local():
-                    saved_count += 1
-            log.info(f"共保存了 {saved_count} 个主机的配置到本地")
+            if current_collector.device_id in all_collectors:
+                all_collectors[current_collector.device_id] = current_collector
+
             # 合并更新记录
             all_update_records = self.load_all_update_records() or {}
-            # 添加当前主机更新记录
             device_id = current_config["system"]["device_id"]
             if device_id not in all_update_records:
                 all_update_records[device_id] = []
+
             # 检查是否已存在相同时间戳的记录
             current_timestamp = update_record.get("timestamp")
             if current_timestamp:
@@ -1733,16 +1746,21 @@ class JoplinConfigManager:
                     all_update_records[device_id].insert(0, update_record)
             else:
                 all_update_records[device_id].insert(0, update_record)
+
             # 限制每个主机最多100条记录
             if len(all_update_records[device_id]) > 100:
                 all_update_records[device_id] = all_update_records[device_id][:100]
+
             # 保存更新记录到本地
             self.save_update_records_to_local(all_update_records)
+
             # 生成markdown对比表格
             markdown_content = self.generate_markdown_table(all_collectors)
+
             # 添加更新历史
             update_history = self.generate_update_history(all_update_records)
             markdown_content += update_history
+
             # 更新笔记
             if existing_notes and len(existing_notes) > 0:
                 note = existing_notes[0]
@@ -1762,6 +1780,7 @@ class JoplinConfigManager:
                 )
                 log.info(f"创建新笔记: {note_title}")
                 return True, "笔记创建成功"
+
         except Exception as e:
             log.error(f"更新Joplin笔记失败: {e}")
             import traceback
