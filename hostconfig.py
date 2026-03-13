@@ -77,7 +77,7 @@ def get_libs_from_cloud(config_key: str) -> List[str]:
             # 过滤空字符串
             libs = [lib for lib in libs if lib]
             if libs:
-                log.info(f"从云端配置获取 {config_key}: {len(libs)} 个库")
+                # log.info(f"从云端配置获取 {config_key}: {len(libs)} 个库")
                 return libs
     except Exception as e:
         log.warning(f"获取云端配置 {config_key} 失败: {e}")
@@ -1241,36 +1241,18 @@ class JoplinConfigManager:
                 # 创建 HostConfigCollector 对象
                 collector = HostConfigCollector()
 
-                # 设置设备ID（从配置数据中获取）
-                if "device_id" in config_data.get("system", {}):
-                    collector.device_id = config_data["system"]["device_id"]
+                # 关键修复：直接设置配置数据，避免调用get_config_data()
+                collector.config_data = config_data  # ← 直接赋值
 
-                # 设置设备名称
-                if "device_name" in config_data.get("system", {}):
-                    collector.device_name = config_data["system"]["device_name"]
-
-                # 设置主机用户
-                if "host_user" in config_data.get("system", {}):
-                    collector.host_user = config_data["system"]["host_user"]
-
-                # 关键修复：检查配置是否完整，如果不完整则尝试从本地配置补充
-                if self._is_config_complete(config_data):
-                    # 配置完整，直接使用
-                    collector.config_data = config_data
-                else:
-                    # 配置不完整，尝试从本地配置获取
-                    if device_id in local_configs:
-                        log.info(
-                            f"设备 {collector.device_name} 的配置不完整，使用本地配置补充"
-                        )
-                        # 合并配置：以解析的配置为基础，用本地配置补充缺失字段
-                        merged_config = self._merge_configs(
-                            config_data, local_configs[device_id]
-                        )
-                        collector.config_data = merged_config
-                    else:
-                        # 没有本地配置，使用解析的配置
-                        collector.config_data = config_data
+                # 设置设备属性
+                if "system" in config_data:
+                    collector.device_id = config_data["system"].get(
+                        "device_id", device_id
+                    )
+                    collector.device_name = config_data["system"].get(
+                        "device_name", "Unknown"
+                    )
+                    collector.host_user = config_data["system"].get("host_user", "N/A")
 
                 # 设置本地配置文件路径
                 collector.local_config_file = (
@@ -1460,7 +1442,7 @@ class JoplinConfigManager:
         # 将 HostConfigCollector 对象转换为配置字典
         joplin_configs = {}
         for device_id, collector in joplin_collectors.items():
-            if hasattr(collector, 'config_data') and collector.config_data:
+            if hasattr(collector, "config_data") and collector.config_data:
                 joplin_configs[device_id] = collector.config_data
             else:
                 # 如果没有配置数据，尝试获取
@@ -1476,14 +1458,14 @@ class JoplinConfigManager:
 
         # 重新加载本地配置（可能已经更新）
         local_configs = self.load_all_configs()
-        
+
         # 合并配置（本地配置优先）
         merged_configs = {}
 
         # 首先添加所有本地配置
         for device_id, config in local_configs.items():
             merged_configs[device_id] = config
-        
+
         # 然后添加Joplin配置（如果不存在于本地配置中）
         for device_id, config in joplin_configs.items():
             if device_id not in merged_configs:
@@ -1495,7 +1477,7 @@ class JoplinConfigManager:
                 # 如果Joplin配置的收集时间更新，则更新合并后的配置
                 if local_time > joplin_time:
                     merged_configs[device_id] = config
-        
+
         # 保存其他主机的配置到本地（用于下次比较）
         self.save_configs_to_local_smart(merged_configs)
         log.info(f"合并后共有 {len(merged_configs)} 个主机的配置")
