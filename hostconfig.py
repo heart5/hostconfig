@@ -1178,15 +1178,6 @@ class JoplinConfigManager:
                 # 直接设置配置数据
                 collector.config_data = config_data
                 
-                # 设置设备属性
-                if "system" in config_data:
-                    collector.device_id = config_data["system"].get("device_id", device_id)
-                    collector.device_name = config_data["system"].get("device_name", "Unknown")
-                    collector.host_user = config_data["system"].get("host_user", "N/A")
-                
-                # 设置本地配置文件路径
-                collector.local_config_file = self.config_dir / f"{collector.device_id}.json"
-                
                 config_collectors[device_id] = collector
             
             log.info(f"从Joplin笔记中成功解析 {len(config_collectors)} 个主机的配置")
