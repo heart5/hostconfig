@@ -774,7 +774,7 @@ class JoplinConfigManager:
 # ### JoplinConfigManager 类 - 第二部分（配置加载）
 
     # %%
-    @timethis
+    # @timethis
     def load_all_configs(self) -> Dict[str, Any]:
         """加载所有主机的配置信息"""
         configs = {}
@@ -848,7 +848,7 @@ class JoplinConfigManager:
 # ### JoplinConfigManager 类 - 第三部分（Markdown解析）
 
     # %%
-    @timethis
+    # @timethis
     def parse_config_from_markdown_table(
         self, markdown_content: str
     ) -> Tuple[Dict[str, Any], Dict[str, List[Dict[str, Any]]]]:
@@ -1233,7 +1233,8 @@ class JoplinConfigManager:
         for device_id, config in configs.items():
             # 不再跳过当前主机配置，因为需要保存从笔记解析的最新配置
             # 检查配置是否有基本的设备信息
-            if not config.get("system") or not config["system"].get("device_id") or not config["system"].get("device_name"):
+            # print(config.device_id, config.device_name)
+            if not config.device_id or not config.device_name:
                 log.warning(f"配置缺少设备信息，跳过: {device_id}")
                 skipped_count += 1
                 continue
@@ -1256,7 +1257,9 @@ class JoplinConfigManager:
     
                     # 比较收集时间 - 如果笔记中的配置时间更新，则保存
                     existing_time = existing_config.get("collection_time", "")
-                    new_time = config.get("collection_time", "")
+                    # print(existing_time)
+                    new_time = config.config_data.get("collection_time", "")
+                    # print(new_time)
                     
                     # 如果新配置的收集时间更晚，或者配置内容有显著差异
                     if new_time > existing_time:
@@ -1267,9 +1270,9 @@ class JoplinConfigManager:
                         # 检查是否有实际数据（非N/A）
                         has_real_data = False
                         for section in ["system", "python", "libraries"]:
-                            if section in config:
-                                if isinstance(config[section], dict):
-                                    for key, value in config[section].items():
+                            if section in config.config_data:
+                                if isinstance(config.config_data[section], dict):
+                                    for key, value in config.config_data[section].items():
                                         if value not in ["N/A", "Not installed", "Unknown", ""]:
                                             has_real_data = True
                                             break
@@ -1292,7 +1295,7 @@ class JoplinConfigManager:
     
                     # 保存配置
                     with open(config_file, "w", encoding="utf-8") as f:
-                        json.dump(config, f, indent=2, ensure_ascii=False)
+                        json.dump(config.config_data, f, indent=2, ensure_ascii=False)
     
                     if config_file.exists():
                         saved_count += 1
@@ -1311,11 +1314,13 @@ class JoplinConfigManager:
         # 清理过时的配置文件
         self._cleanup_old_configs(configs)
 
+        return should_save
+
 # %% [markdown]
 # ### JoplinConfigManager 类 - 第六部分（Markdown生成）
 
     # %%
-    @timethis
+    # @timethis
     def generate_markdown_table(
         self, config_collectors: Dict[str, HostConfigCollector]
     ) -> str:
@@ -1478,7 +1483,7 @@ class JoplinConfigManager:
 # ### JoplinConfigManager 类 - 第七部分（更新历史）
 
     # %%
-    @timethis
+    # @timethis
     def generate_update_history(self, all_records: Dict[str, Any]) -> str:
         """生成更新历史记录（综合所有主机）"""
         if not all_records:
@@ -1495,15 +1500,15 @@ class JoplinConfigManager:
                     if isinstance(record, dict):
                         # 确保每条记录都有设备信息
                         record_copy = record.copy()
-                        if "device_id" not in record_copy:
-                            record_copy["device_id"] = device_id
-                        if "device_name" not in record_copy:
-                            # 尝试从配置中获取设备名称
-                            configs = self.load_all_configs()
-                            if device_id in configs:
-                                record_copy["device_name"] = configs[device_id]["system"]["device_name"]
-                            else:
-                                record_copy["device_name"] = device_id
+                        # if "device_id" not in record_copy:
+                        #     record_copy["device_id"] = device_id
+                        # if "device_name" not in record_copy:
+                        #     # 尝试从配置中获取设备名称
+                        #     configs = self.load_all_configs()
+                        #     if device_id in configs:
+                        #         record_copy["device_name"] = configs[device_id]["system"]["device_name"]
+                        #     else:
+                        #         record_copy["device_name"] = device_id
                         all_updates.append(record_copy)
         
         if not all_updates:
@@ -1541,7 +1546,7 @@ class JoplinConfigManager:
 # ### JoplinConfigManager 类 - 第八部分（更新对比笔记）
 
     # %%
-    @timethis
+    # @timethis
     def update_joplin_note(
         self, current_config: Dict[str, Any], update_record: Dict[str, Any]
     ) -> Tuple[bool, str]:
@@ -1613,6 +1618,12 @@ class JoplinConfigManager:
             current_collector.config_data = current_config
             if current_collector.device_id in all_collectors:
                 all_collectors[current_collector.device_id] = current_collector
+
+            # 智能保存所有获取的主机配置
+            should_update = self.save_configs_to_local_smart(all_collectors)
+            if not should_update:
+                return True, "配置无更新，跳过"
+                
     
             # 生成markdown对比表格
             markdown_content = self.generate_markdown_table(all_collectors)
