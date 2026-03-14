@@ -773,6 +773,9 @@ class JoplinConfigManager:
 # %% [markdown]
 # ### JoplinConfigManager 类 - 第二部分（配置加载）
 
+# %% [markdown]
+# #### load_all_configs(self) -> Dict[str, Any]
+
     # %%
     # @timethis
     def load_all_configs(self) -> Dict[str, Any]:
@@ -793,6 +796,11 @@ class JoplinConfigManager:
         
         return configs
     
+
+# %% [markdown]
+# #### load_all_update_records(self) -> Dict[str, List[Dict[str, Any]]]
+
+    # %%
     @timethis
     def load_all_update_records(self) -> Dict[str, List[Dict[str, Any]]]:
         """加载所有主机的更新记录"""
@@ -808,6 +816,11 @@ class JoplinConfigManager:
         
         return all_records
     
+
+# %% [markdown]
+# #### save_update_records_to_local(self, all_update_records: Dict[str, Any]) -> None
+
+    # %%
     @timethis
     def save_update_records_to_local(self, all_update_records: Dict[str, Any]) -> None:
         """保存所有主机的更新记录"""
@@ -955,7 +968,8 @@ class JoplinConfigManager:
                 
                 # 跳过空配置项和表头
                 if (not config_item or config_item == "配置项" or 
-                    config_item == "主机" or config_item == "时间"):
+                     config_item == "主机" or config_item == "时间" or
+                     config_item == "库名"):  # 新增：跳过库版本表格的表头
                     continue
                 
                 # 根据当前章节处理数据
@@ -1004,6 +1018,8 @@ class JoplinConfigManager:
                 
                 elif current_section == "libraries" or current_section == "ai_libs":
                     # 库版本表格 - 处理所有库类别
+                    # 跳过表头行（已经通过上面的条件跳过了"库名"）
+                    # 现在config_item应该是库名（如"pandas"、"numpy"等）
                     for j, device_name in enumerate(device_names):
                         if j + 1 < len(cells):
                             value = cells[j + 1]
@@ -1012,8 +1028,9 @@ class JoplinConfigManager:
                                 continue
                             
                             if value not in ["N/A", "Not found", "Unknown", "Not installed", ""]:
-                                # 库名称就是config_item
-                                configs[device_id]["libraries"][config_item] = value
+                                # 库名称就是config_item，但需要去除可能的加粗标记
+                                lib_name = config_item.strip("*")
+                                configs[device_id]["libraries"][lib_name] = value
                 
                 elif current_section == "project":
                     # 项目信息表格
@@ -1045,7 +1062,7 @@ class JoplinConfigManager:
                     # 更新历史表格
                     # 表格格式：| 时间 | 主机 | 变化摘要 |
                     if len(cells) >= 3:
-                        # 修正summary错为cells整个list的错误，应该取第三个值，即cells[2]
+                        # 修正summary错为cells整个list的错误，应该取第三个值，即cells
                         # 并对内容首位的*号做去除处理
                         time_str, host_name, summary = cells[0], cells[1], cells[2].strip("*")
                         # 查找对应的设备ID
@@ -1117,6 +1134,9 @@ class JoplinConfigManager:
 # %% [markdown]
 # ### JoplinConfigManager 类 - 第四部分（配置合并）
 
+# %% [markdown]
+# #### _merge_configs( self, parsed_config: Dict[str, Any], local_config: Dict[str, Any] ) -> Dict[str, Any]
+
     # %%
     def _merge_configs(
         self, parsed_config: Dict[str, Any], local_config: Dict[str, Any]
@@ -1178,10 +1198,9 @@ class JoplinConfigManager:
             merged["collection_time"] = local_config.get("collection_time", "N/A")
         
         return merged
-    
 
 # %% [markdown]
-# ### load_configs_updates_from_joplin_note
+# #### load_configs_updates_from_joplin_note
 
     # %%
     # @timethis
