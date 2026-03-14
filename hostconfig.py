@@ -1235,6 +1235,8 @@ class JoplinConfigManager:
         skipped_count = 0
     
         for device_id, collector in configs.items():
+            print(device_id, type(collector))
+            print(collector.config_data)
             # 不再跳过当前主机配置，因为需要保存从笔记解析的最新配置
             # 检查配置是否有基本的设备信息
             # print(config.device_id, config.device_name)
