@@ -969,7 +969,7 @@ class JoplinConfigManager:
                 # 跳过空配置项和表头
                 if (not config_item or config_item == "配置项" or 
                      config_item == "主机" or config_item == "时间" or
-                     config_item == "库名"):  # 新增：跳过库版本表格的表头
+                     config_item == "库名"):  # 跳过库版本表格的表头
                     continue
                 
                 # 根据当前章节处理数据
@@ -984,15 +984,17 @@ class JoplinConfigManager:
                             
                             # 只更新非N/A的值
                             if value not in ["N/A", "Not found", "Unknown", "Not installed", ""]:
-                                if config_item == "系统":
+                                # 去除可能的加粗标记
+                                config_item_clean = config_item.strip("*")
+                                if config_item_clean == "系统":
                                     configs[device_id]["system"]["system"]["system"] = value
-                                elif config_item == "发行版":
+                                elif config_item_clean == "发行版":
                                     configs[device_id]["system"]["system"]["distro"] = value
-                                elif config_item == "内核版本":
+                                elif config_item_clean == "内核版本":
                                     configs[device_id]["system"]["system"]["release"] = value
-                                elif config_item == "架构":
+                                elif config_item_clean == "架构":
                                     configs[device_id]["system"]["system"]["machine"] = value
-                                elif config_item == "主机用户":
+                                elif config_item_clean == "主机用户":
                                     configs[device_id]["system"]["host_user"] = value
                 
                 elif current_section == "python":
@@ -1005,15 +1007,17 @@ class JoplinConfigManager:
                                 continue
                             
                             if value not in ["N/A", "Not found", "Unknown", "Not installed", ""]:
-                                if config_item == "Python版本":
+                                # 去除可能的加粗标记
+                                config_item_clean = config_item.strip("*")
+                                if config_item_clean == "Python版本":
                                     configs[device_id]["python"]["python_version"] = value
-                                elif config_item == "Conda版本":
+                                elif config_item_clean == "Conda版本":
                                     configs[device_id]["python"]["conda_version"] = value
-                                elif config_item == "Pip版本":
+                                elif config_item_clean == "Pip版本":
                                     configs[device_id]["python"]["pip_version"] = value
-                                elif config_item == "虚拟环境":
+                                elif config_item_clean == "虚拟环境":
                                     configs[device_id]["python"]["virtual_env"] = value
-                                elif config_item == "Conda环境":
+                                elif config_item_clean == "Conda环境":
                                     configs[device_id]["python"]["conda_env"] = value
                 
                 elif current_section == "libraries" or current_section == "ai_libs":
@@ -1042,15 +1046,18 @@ class JoplinConfigManager:
                                 continue
                             
                             if value not in ["N/A", "Not found", "Unknown", "Not installed", ""]:
-                                if config_item == "项目路径":
+                                # 去除可能的加粗标记
+                                config_item_clean = config_item.strip("*")
+                                if config_item_clean == "项目路径":
                                     configs[device_id]["project"]["project_path"] = value
-                                elif config_item == "配置文件数量":
+                                elif config_item_clean == "配置文件数量":
                                     # 这里不直接设置，由其他字段推导
                                     pass
                 
                 elif current_section == "collection_time":
                     # 信息收集时间表格
                     # 表格格式：| 主机 | 收集时间 |
+                    # 注意：这里的config_item是主机名
                     if config_item in device_names:
                         device_id = device_id_map.get(config_item)
                         if device_id and device_id in configs and len(cells) >= 2:
