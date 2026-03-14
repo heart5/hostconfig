@@ -1313,12 +1313,10 @@ class JoplinConfigManager:
                 log.debug(f"跳过保存（无变化）: {device_id}")
     
         # 统计报告
-        log.info(f"配置保存统计: 保存{saved_count}个, 跳过{skipped_count}个, 无变化{updated_count}个")
+        log.info(f"配置保存统计: 共有{len(configs)}个配置需要处理，保存{saved_count}个, 跳过{skipped_count}个, 无变化{updated_count}个")
     
         # 清理过时的配置文件
         self._cleanup_old_configs(configs)
-
-        return should_save
 
 # %% [markdown]
 # ### JoplinConfigManager 类 - 第六部分（生成配置对比表格）
@@ -1552,7 +1550,7 @@ class JoplinConfigManager:
                 return True, "配置无变化，无需更新笔记"
     
             # 从Joplin笔记中读取现有配置和更新记录
-            joplin_collectors, joplin_update_records = self.load_configs_updates_from_joplin_note()
+            joplin_configs, joplin_update_records = self.load_configs_updates_from_joplin_note()
     
             # 如果没有从笔记解析到更新记录字典集，则初始化为空字典
             if not joplin_update_records:
@@ -1595,29 +1593,29 @@ class JoplinConfigManager:
             note_title = "主机配置对比表"
             existing_notes = searchnotes(note_title, parent_id=notebook_id)
     
-            # 获取所有主机配置
-            all_configs = {}
-            for device_id, collector in joplin_collectors.items():
-                all_configs[device_id] = collector.get_config_data()
-    
             # 将配置字典转换为 HostConfigCollector 对象
             all_collectors = {}
-            for device_id, config_data in all_configs.items():
-                collector = HostConfigCollector()
-                collector.config_data = config_data
+            for device_id, config_data in joplin_configs.items():
+                collector = HostConfigCollector(config_data)
                 all_collectors[device_id] = collector
     
+            # 从本地获取所有配置
+            local_configs = self.load_all_configs()
+    
             # 确保当前主机配置最新
-            current_collector = HostConfigCollector()
-            current_collector.config_data = current_config
-            if current_collector.device_id in all_collectors:
+            current_collector = HostConfigCollector(current_config)
+            # current_collector.config_data = current_config
+            if current_collector.device_id not in all_collectors:
                 all_collectors[current_collector.device_id] = current_collector
-
+            else:
+                current_collector = HostConfigCollector(self._merge_configs(all_collectors[current_collector.device_id].config_data, current_config))
+                all_collectors[current_collector.device_id] = current_collector
+    
             # 智能保存所有获取的主机配置
-            should_update = self.save_configs_to_local_smart(all_collectors)
-            if not should_update:
-                return True, "配置无更新，跳过"
-                
+            self.save_configs_to_local_smart(all_collectors)
+            # should_update = self.save_configs_to_local_smart(all_collectors)
+            # if not should_update:
+            #     return True, "配置无更新，跳过"
     
             # 生成markdown对比表格
             markdown_content = self.generate_markdown_table(all_collectors)
@@ -1631,7 +1629,7 @@ class JoplinConfigManager:
                 updatenote_body(note.id, markdown_content)
                 log.info(f"更新现有笔记: {note_title}")
             else:
-                note_id = createnote(notebook_id, note_title, markdown_content)
+                note_id = createnote(note_title, markdown_content, parent_id=notebook_id)
                 log.info(f"创建新笔记: {note_title} (ID: {note_id})")
     
             return True, "笔记更新成功"
