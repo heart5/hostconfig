@@ -849,7 +849,7 @@ class JoplinConfigManager:
 
     # %%
     # @timethis
-    def parse_config_from_markdown_table(
+    def parse_configs_updates_from_markdown_table(
         self, markdown_content: str
     ) -> Tuple[Dict[str, Any], Dict[str, List[Dict[str, Any]]]]:
         """从Markdown表格中解析配置信息和更新记录（增强版）"""
@@ -1045,7 +1045,9 @@ class JoplinConfigManager:
                     # 更新历史表格
                     # 表格格式：| 时间 | 主机 | 变化摘要 |
                     if len(cells) >= 3:
-                        time_str, host_name, summary = cells[0], cells[1], cells
+                        # 修正summary错为cells整个list的错误，应该取第三个值，即cells[2]
+                        # 并对内容首位的*号做去除处理
+                        time_str, host_name, summary = cells[0], cells[1], cells[2].strip("*")
                         # 查找对应的设备ID
                         device_id = device_id_map.get(host_name)
                         if device_id:
@@ -1177,8 +1179,13 @@ class JoplinConfigManager:
         
         return merged
     
-    @timethis
-    def load_configs_from_joplin_note(
+
+# %% [markdown]
+# ### load_configs_updates_from_joplin_note
+
+    # %%
+    # @timethis
+    def load_configs_updates_from_joplin_note(
         self,
     ) -> Tuple[Dict[str, HostConfigCollector], Dict[str, List[Dict[str, Any]]]]:
         """从Joplin笔记中读取所有主机的配置和更新记录"""
@@ -1195,7 +1202,7 @@ class JoplinConfigManager:
             note_content = note.body
             
             # 使用解析方法获取配置字典
-            configs_dict, update_records = self.parse_config_from_markdown_table(note_content)
+            configs_dict, update_records = self.parse_configs_updates_from_markdown_table(note_content)
             
             # 加载本地配置，用于补充缺失的配置信息
             local_configs = self.load_all_configs()
@@ -1204,10 +1211,7 @@ class JoplinConfigManager:
             config_collectors = {}
             for device_id, config_data in configs_dict.items():
                 # 创建 HostConfigCollector 对象
-                collector = HostConfigCollector()
-                
-                # 直接设置配置数据
-                collector.config_data = config_data
+                collector = HostConfigCollector(config_data = config_data)
                 
                 config_collectors[device_id] = collector
             
@@ -1317,7 +1321,7 @@ class JoplinConfigManager:
         return should_save
 
 # %% [markdown]
-# ### JoplinConfigManager 类 - 第六部分（Markdown生成）
+# ### JoplinConfigManager 类 - 第六部分（生成配置对比表格）
 
     # %%
     # @timethis
@@ -1480,7 +1484,7 @@ class JoplinConfigManager:
         return "\n".join(md_lines) + "\n\n"
 
 # %% [markdown]
-# ### JoplinConfigManager 类 - 第七部分（更新历史）
+# ### JoplinConfigManager 类 - 第七部分（生成更新历史）
 
     # %%
     # @timethis
@@ -1498,17 +1502,7 @@ class JoplinConfigManager:
             if isinstance(records, list):
                 for record in records:
                     if isinstance(record, dict):
-                        # 确保每条记录都有设备信息
                         record_copy = record.copy()
-                        # if "device_id" not in record_copy:
-                        #     record_copy["device_id"] = device_id
-                        # if "device_name" not in record_copy:
-                        #     # 尝试从配置中获取设备名称
-                        #     configs = self.load_all_configs()
-                        #     if device_id in configs:
-                        #         record_copy["device_name"] = configs[device_id]["system"]["device_name"]
-                        #     else:
-                        #         record_copy["device_name"] = device_id
                         all_updates.append(record_copy)
         
         if not all_updates:
@@ -1558,9 +1552,9 @@ class JoplinConfigManager:
                 return True, "配置无变化，无需更新笔记"
     
             # 从Joplin笔记中读取现有配置和更新记录
-            joplin_collectors, joplin_update_records = self.load_configs_from_joplin_note()
+            joplin_collectors, joplin_update_records = self.load_configs_updates_from_joplin_note()
     
-            # 如果没有从笔记解析到更新记录，则初始化为空字典
+            # 如果没有从笔记解析到更新记录字典集，则初始化为空字典
             if not joplin_update_records:
                 joplin_update_records = {}
     
@@ -1583,7 +1577,7 @@ class JoplinConfigManager:
             else:
                 all_update_records[device_id].insert(0, update_record)
     
-            # 限制每个主机最多100条记录
+            # 限制当前运行主机的更新记录最多100条
             if len(all_update_records[device_id]) > 100:
                 all_update_records[device_id] = all_update_records[device_id][:100]
     
@@ -1702,44 +1696,6 @@ def hostconfig2note():
 
 # %% [markdown]
 # ## 测试函数
-
-# %%
-def test_hostconfig():
-    """测试主机配置功能"""
-    print("测试主机配置收集器...")
-
-    # 1. 创建本地主机收集器
-    local_collector = HostConfigCollector.from_local_host()
-    print(f"设备名称: {local_collector.device_name}")
-    print(f"设备ID: {local_collector.device_id}")
-
-    # 2. 显示配置摘要
-    local_collector.show_config_summary()
-
-    # 3. 保存配置
-    if local_collector.save_to_file():
-        print(f"配置已保存到: {local_collector.local_config_file}")
-
-    # 4. 测试从文件加载
-    if local_collector.local_config_file.exists():
-        file_collector = HostConfigCollector.from_config_file(
-            local_collector.local_config_file
-        )
-        print(f"从文件加载的设备: {file_collector.device_name}")
-
-    # 5. 测试配置比较
-    test_config = {
-        "system": {"device_id": "test123", "device_name": "TestHost"},
-        "python": {"python_version": "3.9.0"},
-        "libraries": {"torch": "2.0.0"},
-    }
-    test_collector = HostConfigCollector.from_config_data(test_config)
-
-    differences = local_collector.compare_with(test_collector)
-    print(f"配置差异数量: {sum(len(diff) for diff in differences.values())}")
-
-    return local_collector
-
 
 # %% [markdown]
 # ## 主程序入口
