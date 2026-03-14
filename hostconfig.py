@@ -1228,17 +1228,17 @@ class JoplinConfigManager:
 # ### JoplinConfigManager 类 - 第五部分（配置保存）
 
     # %%
-    def save_configs_to_local_smart(self, configs: Dict[str, Any]) -> None:
+    def save_collectors_to_local_smart(self, configs: Dict[str, Any]) -> None:
         """智能保存从笔记加载的配置到本地（增强版）"""
         saved_count = 0
         updated_count = 0
         skipped_count = 0
     
-        for device_id, config in configs.items():
+        for device_id, collector in configs.items():
             # 不再跳过当前主机配置，因为需要保存从笔记解析的最新配置
             # 检查配置是否有基本的设备信息
             # print(config.device_id, config.device_name)
-            if not config.device_id or not config.device_name:
+            if not collector.device_id or not collector.device_name:
                 log.warning(f"配置缺少设备信息，跳过: {device_id}")
                 skipped_count += 1
                 continue
@@ -1262,7 +1262,7 @@ class JoplinConfigManager:
                     # 比较收集时间 - 如果笔记中的配置时间更新，则保存
                     existing_time = existing_config.get("collection_time", "")
                     # print(existing_time)
-                    new_time = config.config_data.get("collection_time", "")
+                    new_time = collector.config_data.get("collection_time", "")
                     # print(new_time)
                     
                     # 如果新配置的收集时间更晚，或者配置内容有显著差异
@@ -1274,9 +1274,9 @@ class JoplinConfigManager:
                         # 检查是否有实际数据（非N/A）
                         has_real_data = False
                         for section in ["system", "python", "libraries"]:
-                            if section in config.config_data:
-                                if isinstance(config.config_data[section], dict):
-                                    for key, value in config.config_data[section].items():
+                            if section in collector.config_data:
+                                if isinstance(collector.config_data[section], dict):
+                                    for key, value in collector.config_data[section].items():
                                         if value not in ["N/A", "Not installed", "Unknown", ""]:
                                             has_real_data = True
                                             break
@@ -1299,7 +1299,7 @@ class JoplinConfigManager:
     
                     # 保存配置
                     with open(config_file, "w", encoding="utf-8") as f:
-                        json.dump(config.config_data, f, indent=2, ensure_ascii=False)
+                        json.dump(collector.config_data, f, indent=2, ensure_ascii=False)
     
                     if config_file.exists():
                         saved_count += 1
@@ -1612,7 +1612,7 @@ class JoplinConfigManager:
                 all_collectors[current_collector.device_id] = current_collector
     
             # 智能保存所有获取的主机配置
-            self.save_configs_to_local_smart(all_collectors)
+            self.save_collectors_to_local_smart(all_collectors)
             # should_update = self.save_configs_to_local_smart(all_collectors)
             # if not should_update:
             #     return True, "配置无更新，跳过"
