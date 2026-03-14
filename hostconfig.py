@@ -1193,34 +1193,36 @@ class JoplinConfigManager:
             # 查找配置笔记
             note_title = "主机配置对比表"
             existing_notes = searchnotes(note_title)
-            
+    
             if not existing_notes or len(existing_notes) == 0:
                 log.info("未找到主机配置对比笔记")
                 return {}, {}
-            
+    
             note = existing_notes[0]
             note_content = note.body
-            
+    
             # 使用解析方法获取配置字典
-            configs_dict, update_records = self.parse_configs_updates_from_markdown_table(note_content)
-            
+            configs_dict, update_records = self.parse_configs_updates_from_markdown_table(
+                note_content
+            )
+    
             # 加载本地配置，用于补充缺失的配置信息
             local_configs = self.load_all_configs()
-            
+    
             # 将配置字典转换为 HostConfigCollector 对象
             config_collectors = {}
             for device_id, config_data in configs_dict.items():
                 # 创建 HostConfigCollector 对象
-                collector = HostConfigCollector(config_data = config_data)
-                
+                collector = HostConfigCollector(config_data=config_data)
                 config_collectors[device_id] = collector
-            
+    
             log.info(f"从Joplin笔记中成功解析 {len(config_collectors)} 个主机的配置")
             return config_collectors, update_records
-        
+    
         except Exception as e:
             log.error(f"从Joplin笔记读取配置失败: {e}")
             import traceback
+    
             log.error(traceback.format_exc())
             return {}, {}
 
@@ -1552,7 +1554,9 @@ class JoplinConfigManager:
                 return True, "配置无变化，无需更新笔记"
     
             # 从Joplin笔记中读取现有配置和更新记录
-            joplin_configs, joplin_update_records = self.load_configs_updates_from_joplin_note()
+            joplin_config_collectors, joplin_update_records = (
+                self.load_configs_updates_from_joplin_note()
+            )
     
             # 如果没有从笔记解析到更新记录字典集，则初始化为空字典
             if not joplin_update_records:
@@ -1595,29 +1599,26 @@ class JoplinConfigManager:
             note_title = "主机配置对比表"
             existing_notes = searchnotes(note_title, parent_id=notebook_id)
     
-            # 将配置字典转换为 HostConfigCollector 对象
-            all_collectors = {}
-            for device_id, config_data in joplin_configs.items():
-                collector = HostConfigCollector(config_data=config_data)
-                all_collectors[device_id] = collector
-    
-            # 从本地获取所有配置
-            local_configs = self.load_all_configs()
+            # 配置字典为 HostConfigCollector 对象
+            all_collectors = joplin_config_collectors.copy()
     
             # 确保当前主机配置最新
             current_collector = HostConfigCollector(config_data=current_config)
-            # current_collector.config_data = current_config
-            if current_collector.device_id not in all_collectors:
-                all_collectors[current_collector.device_id] = current_collector
+            current_device_id = current_collector.device_id
+    
+            if current_device_id not in all_collectors:
+                all_collectors[current_device_id] = current_collector
             else:
-                current_collector = HostConfigCollector(config_data=self._merge_configs(all_collectors[current_collector.device_id].config_data, current_config))
-                all_collectors[current_collector.device_id] = current_collector
+                # 合并配置
+                existing_collector = all_collectors[current_device_id]
+                merged_config = self._merge_configs(
+                    existing_collector.config_data, current_config
+                )
+                # 更新现有收集器的配置数据
+                existing_collector.config_data = merged_config
     
             # 智能保存所有获取的主机配置
             self.save_collectors_to_local_smart(all_collectors)
-            # should_update = self.save_configs_to_local_smart(all_collectors)
-            # if not should_update:
-            #     return True, "配置无更新，跳过"
     
             # 生成markdown对比表格
             markdown_content = self.generate_markdown_table(all_collectors)
@@ -1631,7 +1632,7 @@ class JoplinConfigManager:
                 updatenote_body(note.id, markdown_content)
                 log.info(f"更新现有笔记: {note_title}")
             else:
-                note_id = createnote(note_title, markdown_content, parent_id=notebook_id)
+                note_id = createnote(notebook_id, note_title, markdown_content)
                 log.info(f"创建新笔记: {note_title} (ID: {note_id})")
     
             return True, "笔记更新成功"
@@ -1639,6 +1640,7 @@ class JoplinConfigManager:
         except Exception as e:
             log.error(f"更新Joplin笔记失败: {e}")
             import traceback
+    
             log.error(traceback.format_exc())
             return False, f"更新失败: {str(e)}"
 
