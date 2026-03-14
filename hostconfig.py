@@ -1598,19 +1598,19 @@ class JoplinConfigManager:
             # 将配置字典转换为 HostConfigCollector 对象
             all_collectors = {}
             for device_id, config_data in joplin_configs.items():
-                collector = HostConfigCollector(config_data)
+                collector = HostConfigCollector(config_data=config_data)
                 all_collectors[device_id] = collector
     
             # 从本地获取所有配置
             local_configs = self.load_all_configs()
     
             # 确保当前主机配置最新
-            current_collector = HostConfigCollector(current_config)
+            current_collector = HostConfigCollector(config_data=current_config)
             # current_collector.config_data = current_config
             if current_collector.device_id not in all_collectors:
                 all_collectors[current_collector.device_id] = current_collector
             else:
-                current_collector = HostConfigCollector(self._merge_configs(all_collectors[current_collector.device_id].config_data, current_config))
+                current_collector = HostConfigCollector(config_data=self._merge_configs(all_collectors[current_collector.device_id].config_data, current_config))
                 all_collectors[current_collector.device_id] = current_collector
     
             # 智能保存所有获取的主机配置
