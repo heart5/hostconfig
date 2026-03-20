@@ -633,6 +633,11 @@ class HostConfigCollector(BaseConfigCollector):
         
         return differences
     
+
+# %% [markdown]
+# ### HostConfigCollector 类 - 第六部分（输出配置摘要）
+
+    # %%
     def show_config_summary(self):
         """显示配置摘要"""
         config = self.config_data
@@ -1207,6 +1212,57 @@ class JoplinConfigManager:
 # ### JoplinConfigManager 类 - 第四部分（配置合并）
 
 # %% [markdown]
+# #### configs_are_equal(self, config1, config2)
+
+    # %%
+    def _configs_are_equal(self, config1, config2):
+        """深度比较两个配置是否实质相同"""
+        # 比较关键字段
+        key_fields = ["system", "python", "libraries"]
+    
+        for field in key_fields:
+            if field in config1 and field in config2:
+                # 对于system字段，只比较关键信息
+                if field == "system":
+                    # 定义需要比较的system字段
+                    system_keys = ["device_name", "host_user"]
+                    for key in system_keys:
+                        if config1[field].get(key) != config2[field].get(key):
+                            return False
+    
+                    # 比较system.system子字段中的关键信息
+                    system_system_keys = ["system", "distro", "kernel"]
+                    for key in system_system_keys:
+                        val1 = config1[field].get("system", {}).get(key)
+                        val2 = config2[field].get("system", {}).get(key)
+                        if val1 != val2:
+                            return False
+    
+                # 对于python字段，只比较关键版本信息
+                elif field == "python":
+                    python_keys = ["python_version", "conda_version", "conda_env"]
+                    for key in python_keys:
+                        if config1[field].get(key) != config2[field].get(key):
+                            return False
+    
+                # 对于libraries字段，只比较已安装的库
+                elif field == "libraries":
+                    libs1 = {
+                        k: v
+                        for k, v in config1[field].items()
+                        if v not in ["Not installed", "Unknown", "N/A"]
+                    }
+                    libs2 = {
+                        k: v
+                        for k, v in config2[field].items()
+                        if v not in ["Not installed", "Unknown", "N/A"]
+                    }
+                    if libs1 != libs2:
+                        return False
+    
+        return True
+
+# %% [markdown]
 # #### _merge_configs( self, parsed_config: Dict[str, Any], local_config: Dict[str, Any] ) -> Dict[str, Any]
 
     # %%
@@ -1633,10 +1689,8 @@ class JoplinConfigManager:
 # ### JoplinConfigManager 类 - 第八部分（更新对比笔记）
 
     # %%
-    # @timethis
-    def update_joplin_note(
-        self, current_config: Dict[str, Any], update_record: Dict[str, Any]
-    ) -> Tuple[bool, str]:
+    def update_joplin_note(self, current_config, update_record):
+        print(update_record)
         """更新Joplin笔记（增强版，综合所有主机更新记录）"""
         try:
             # 如果没有变化，直接返回
@@ -1645,24 +1699,24 @@ class JoplinConfigManager:
                     f"主机《{current_config['system']['device_name']}》的配置无变化，跳过笔记更新"
                 )
                 return True, "配置无变化，跳过笔记更新"
-    
+            
             # 从Joplin笔记中读取现有配置和更新记录
             joplin_config_collectors, joplin_update_records = (
                 self.load_configs_updates_from_joplin_note()
             )
-    
+            
             # 如果没有从笔记解析到更新记录字典集，则初始化为空字典
             if not joplin_update_records:
                 joplin_update_records = {}
-    
+            
             # 合并更新记录：以从笔记解析的记录为基础
             all_update_records = joplin_update_records.copy()
-    
+            
             # 添加当前主机的更新记录
             device_id = current_config["system"]["device_id"]
             if device_id not in all_update_records:
                 all_update_records[device_id] = []
-    
+            
             current_timestamp = update_record.get("timestamp")
             if current_timestamp:
                 # 检查是否已存在相同时间戳的记录
@@ -1673,52 +1727,57 @@ class JoplinConfigManager:
                     all_update_records[device_id].insert(0, update_record)
             else:
                 all_update_records[device_id].insert(0, update_record)
-    
+            
             # 限制当前运行主机的更新记录最多100条
             if len(all_update_records[device_id]) > 100:
                 all_update_records[device_id] = all_update_records[device_id][:100]
-    
+            
             # 保存更新记录到本地（所有主机）
             self.save_update_records_to_local(all_update_records)
-    
+            
             # 查找或创建笔记本
             notebook_title = "ewmobile"
             notebook_id = searchnotebook(notebook_title)
             if not notebook_id:
                 notebook_id = jpapi.add_notebook(title=notebook_title)
                 log.info(f"创建新笔记本: {notebook_title}")
-    
+            
             # 查找或创建笔记
             note_title = "主机配置对比表"
             existing_notes = searchnotes(note_title, parent_id=notebook_id)
-    
+            
             # 配置字典为 HostConfigCollector 对象
             all_collectors = joplin_config_collectors.copy()
-    
+            
             # 确保当前主机配置最新
             current_collector = HostConfigCollector(config_data=current_config)
             current_device_id = current_collector.device_id
-    
+            
             if current_device_id not in all_collectors:
                 all_collectors[current_device_id] = current_collector
             else:
                 # 合并配置
                 existing_collector = all_collectors[current_device_id]
+                # 深度比较两个配置是否真的不同
+                if self._configs_are_equal(existing_collector.config_data, current_config):
+                    # 如果配置实质相同，即使格式不同也不更新
+                    log.info(f"配置实质相同，跳过笔记更新")
+                    return True, "配置无变化"
                 merged_config = self._merge_configs(
                     existing_collector.config_data, current_config
                 )
                 # 更新现有收集器的配置数据
                 existing_collector.config_data = merged_config
-    
+            
             # 智能保存所有获取的主机配置
             self.save_collectors_to_local_smart(all_collectors)
-    
+            
             # 生成markdown对比表格
             markdown_content = self.generate_markdown_table(all_collectors)
-    
+            
             # 生成综合所有主机的更新历史
             markdown_content += self.generate_update_history(all_update_records)
-    
+            
             # 更新或创建笔记
             if existing_notes:
                 note = existing_notes[0]
@@ -1727,13 +1786,13 @@ class JoplinConfigManager:
             else:
                 note_id = createnote(notebook_id, note_title, markdown_content)
                 log.info(f"创建新笔记: {note_title} (ID: {note_id})")
-    
+            
             return True, "笔记更新成功"
-    
+            
         except Exception as e:
             log.error(f"更新Joplin笔记失败: {e}")
             import traceback
-    
+            
             log.error(traceback.format_exc())
             return False, f"更新失败: {str(e)}"
 
@@ -1746,6 +1805,7 @@ class JoplinConfigManager:
 def hostconfig2note():
     """主函数：收集主机配置并更新到笔记"""
     try:
+        joplin_manager = JoplinConfigManager()
         # 1. 收集当前主机配置
         collector = HostConfigCollector.from_local_host()
         collector.show_config_summary()
@@ -1770,11 +1830,45 @@ def hostconfig2note():
                 current_config_copy.pop("collection_time", None)
 
                 # 比较两个配置是否相同
-                if old_config_copy == current_config_copy:
+                if joplin_manager._configs_are_equal(
+                    old_config_copy, current_config_copy
+                ):
+                    # 如果配置实质相同，即使格式不同也不更新
                     has_changes = False
                     summary = "无变化"
                     log.info(f"配置无变化，跳过保存")
                 else:
+                    # 添加调试信息
+                    log.debug(f"配置比较失败，开始详细比较...")
+
+                    # 详细比较system字段
+                    if "system" in old_config_copy and "system" in current_config_copy:
+                        for key in ["device_name", "host_user"]:
+                            if old_config_copy["system"].get(
+                                key
+                            ) != current_config_copy["system"].get(key):
+                                log.debug(
+                                    f"system.{key}不同: {old_config_copy['system'].get(key)} != {current_config_copy['system'].get(key)}"
+                                )
+
+                        for key in ["system", "distro", "kernel"]:
+                            val1 = old_config_copy["system"].get("system", {}).get(key)
+                            val2 = (
+                                current_config_copy["system"].get("system", {}).get(key)
+                            )
+                            if val1 != val2:
+                                log.debug(f"system.system.{key}不同: {val1} != {val2}")
+
+                    # 详细比较python字段
+                    if "python" in old_config_copy and "python" in current_config_copy:
+                        for key in ["python_version", "conda_version", "conda_env"]:
+                            if old_config_copy["python"].get(
+                                key
+                            ) != current_config_copy["python"].get(key):
+                                log.debug(
+                                    f"python.{key}不同: {old_config_copy['python'].get(key)} != {current_config_copy['python'].get(key)}"
+                                )
+
                     # 找出具体变化
                     changes = []
                     for key in ["system", "python", "libraries", "project"]:
@@ -1785,6 +1879,7 @@ def hostconfig2note():
                         summary = f"配置变化: {', '.join(changes)}"
                     else:
                         summary = "配置有细微变化"
+                    collector.save_to_file()
 
             except Exception as e:
                 log.warning(f"比较旧配置失败: {e}")
@@ -1805,7 +1900,6 @@ def hostconfig2note():
             log.debug(f"跳过保存（无变化）: {collector.device_id}")
 
         # 4. 更新Joplin笔记
-        joplin_manager = JoplinConfigManager()
         success, message = joplin_manager.update_joplin_note(
             current_config, update_record
         )
