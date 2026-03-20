@@ -1693,8 +1693,8 @@ class JoplinConfigManager:
         print(update_record)
         """更新Joplin笔记（增强版，综合所有主机更新记录）"""
         try:
-            # 如果没有变化，直接返回
-            if not update_record.get("has_changes", False):
+            # # 如果没有变化，直接返回
+            if not update_record.get("has_changes", False) and not getinivaluefromcloud("hostconfig", "FORCE_UPDATE"):
                 log.info(
                     f"主机《{current_config['system']['device_name']}》的配置无变化，跳过笔记更新"
                 )
