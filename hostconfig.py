@@ -795,7 +795,7 @@ class JoplinConfigManager:
                 log.error(f"加载配置文件 {config_file} 失败: {e}")
         
         return configs
-    
+
 
 # %% [markdown]
 # #### load_all_update_records(self) -> Dict[str, List[Dict[str, Any]]]
@@ -815,7 +815,7 @@ class JoplinConfigManager:
                 log.error(f"加载更新记录文件 {record_file} 失败: {e}")
         
         return all_records
-    
+
 
 # %% [markdown]
 # #### save_update_records_to_local(self, all_update_records: Dict[str, Any]) -> None
@@ -868,13 +868,13 @@ class JoplinConfigManager:
         """从Markdown表格中解析配置信息和更新记录（增强版）"""
         configs = {}
         update_records = {}
-        
+    
         try:
             lines = markdown_content.split("\n")
             current_section = None
             device_names = []
             device_id_map = {}
-            
+    
             # 第一步：解析设备名称（从第一个表格的标题行）
             for i, line in enumerate(lines):
                 line = line.strip()
@@ -886,19 +886,21 @@ class JoplinConfigManager:
                         device_names = parts[1:]
                         log.info(f"从表格中解析到设备名称: {device_names}")
                         break
-            
+    
             if not device_names:
                 log.warning("无法从表格中解析设备名称")
                 return {}, {}
-            
+    
             # 第二步：为每个设备查找对应的device_id
             for device_name in device_names:
-                device_id = findvaluebykeyinsection("happyjpinifromcloud", "device", device_name)
+                device_id = findvaluebykeyinsection(
+                    "happyjpinifromcloud", "device", device_name
+                )
                 if not device_id:
                     # 如果找不到，使用设备名称作为device_id的替代
                     device_id = f"device_{device_name.replace(' ', '_')}"
                 device_id_map[device_name] = device_id
-                
+    
                 # 创建初始配置结构
                 configs[device_id] = {
                     "system": {
@@ -911,6 +913,10 @@ class JoplinConfigManager:
                             "release": "N/A",
                             "version": "N/A",
                             "machine": "N/A",
+                            "processor": "N/A",
+                            "architecture": "N/A",
+                            "distro": "N/A",
+                            "kernel": "N/A",
                         },
                     },
                     "python": {
@@ -924,14 +930,14 @@ class JoplinConfigManager:
                     "project": {"project_path": "N/A", "config_files": {}},
                     "collection_time": "N/A",
                 }
-                
+    
                 # 初始化更新记录列表
                 update_records[device_id] = []
-            
+    
             # 第三步：解析各个部分的配置
             for line in lines:
                 line = line.strip()
-                
+    
                 # 检测章节标题
                 if line.startswith("## "):
                     if "系统信息" in line:
@@ -949,29 +955,33 @@ class JoplinConfigManager:
                     elif "更新历史" in line:
                         current_section = "update_history"
                     continue
-                
+    
                 # 跳过空行和非表格行
                 if not line.startswith("|"):
                     continue
-                
+    
                 # 跳过表头行和分隔行
                 if line.startswith("|:---") or line.startswith("|---"):
                     continue
-                
+    
                 # 解析表格行
                 cells = [cell.strip() for cell in line.strip("|").split("|")]
                 if len(cells) < 2:
                     continue
-                
+    
                 # 第一列是配置项名称
                 config_item = cells[0] if cells[0] else ""
-                
+    
                 # 跳过空配置项和表头
-                if (not config_item or config_item == "配置项" or 
-                     config_item == "主机" or config_item == "时间" or
-                     config_item == "库名"):  # 跳过库版本表格的表头
+                if (
+                    not config_item
+                    or config_item == "配置项"
+                    or config_item == "主机"
+                    or config_item == "时间"
+                    or config_item == "库名"
+                ):  # 跳过库版本表格的表头
                     continue
-                
+    
                 # 根据当前章节处理数据
                 if current_section == "system":
                     # 系统信息表格
@@ -981,9 +991,15 @@ class JoplinConfigManager:
                             device_id = device_id_map.get(device_name)
                             if not device_id or device_id not in configs:
                                 continue
-                            
+    
                             # 只更新非N/A的值
-                            if value not in ["N/A", "Not found", "Unknown", "Not installed", ""]:
+                            if value not in [
+                                "N/A",
+                                "Not found",
+                                "Unknown",
+                                "Not installed",
+                                "",
+                            ]:
                                 # 去除可能的加粗标记
                                 config_item_clean = config_item.strip("*")
                                 if config_item_clean == "系统":
@@ -991,12 +1007,34 @@ class JoplinConfigManager:
                                 elif config_item_clean == "发行版":
                                     configs[device_id]["system"]["system"]["distro"] = value
                                 elif config_item_clean == "内核版本":
-                                    configs[device_id]["system"]["system"]["release"] = value
+                                    configs[device_id]["system"]["system"]["kernel"] = value
                                 elif config_item_clean == "架构":
-                                    configs[device_id]["system"]["system"]["machine"] = value
+                                    configs[device_id]["system"]["system"]["machine"] = (
+                                        value
+                                    )
                                 elif config_item_clean == "主机用户":
                                     configs[device_id]["system"]["host_user"] = value
-                
+                                elif config_item_clean == "平台":
+                                    configs[device_id]["system"]["system"]["platform"] = (
+                                        value
+                                    )
+                                elif config_item_clean == "系统版本":
+                                    configs[device_id]["system"]["system"]["release"] = (
+                                        value
+                                    )
+                                elif config_item_clean == "系统详细版本":
+                                    configs[device_id]["system"]["system"]["version"] = (
+                                        value
+                                    )
+                                elif config_item_clean == "机器类型":
+                                    configs[device_id]["system"]["system"]["machine"] = (
+                                        value
+                                    )
+                                elif config_item_clean == "处理器":
+                                    configs[device_id]["system"]["system"]["processor"] = (
+                                        value
+                                    )
+    
                 elif current_section == "python":
                     # Python环境表格
                     for j, device_name in enumerate(device_names):
@@ -1005,8 +1043,14 @@ class JoplinConfigManager:
                             device_id = device_id_map.get(device_name)
                             if not device_id or device_id not in configs:
                                 continue
-                            
-                            if value not in ["N/A", "Not found", "Unknown", "Not installed", ""]:
+    
+                            if value not in [
+                                "N/A",
+                                "Not found",
+                                "Unknown",
+                                "Not installed",
+                                "",
+                            ]:
                                 # 去除可能的加粗标记
                                 config_item_clean = config_item.strip("*")
                                 if config_item_clean == "Python版本":
@@ -1019,7 +1063,7 @@ class JoplinConfigManager:
                                     configs[device_id]["python"]["virtual_env"] = value
                                 elif config_item_clean == "Conda环境":
                                     configs[device_id]["python"]["conda_env"] = value
-                
+    
                 elif current_section == "libraries" or current_section == "ai_libs":
                     # 库版本表格 - 处理所有库类别
                     # 跳过表头行（已经通过上面的条件跳过了"库名"）
@@ -1030,12 +1074,18 @@ class JoplinConfigManager:
                             device_id = device_id_map.get(device_name)
                             if not device_id or device_id not in configs:
                                 continue
-                            
-                            if value not in ["N/A", "Not found", "Unknown", "Not installed", ""]:
+    
+                            if value not in [
+                                "N/A",
+                                "Not found",
+                                "Unknown",
+                                "Not installed",
+                                "",
+                            ]:
                                 # 库名称就是config_item，但需要去除可能的加粗标记
                                 lib_name = config_item.strip("*")
                                 configs[device_id]["libraries"][lib_name] = value
-                
+    
                 elif current_section == "project":
                     # 项目信息表格
                     for j, device_name in enumerate(device_names):
@@ -1044,8 +1094,14 @@ class JoplinConfigManager:
                             device_id = device_id_map.get(device_name)
                             if not device_id or device_id not in configs:
                                 continue
-                            
-                            if value not in ["N/A", "Not found", "Unknown", "Not installed", ""]:
+    
+                            if value not in [
+                                "N/A",
+                                "Not found",
+                                "Unknown",
+                                "Not installed",
+                                "",
+                            ]:
                                 # 去除可能的加粗标记
                                 config_item_clean = config_item.strip("*")
                                 if config_item_clean == "项目路径":
@@ -1053,7 +1109,7 @@ class JoplinConfigManager:
                                 elif config_item_clean == "配置文件数量":
                                     # 这里不直接设置，由其他字段推导
                                     pass
-                
+    
                 elif current_section == "collection_time":
                     # 信息收集时间表格
                     # 表格格式：| 主机 | 收集时间 |
@@ -1064,14 +1120,18 @@ class JoplinConfigManager:
                             collection_time = cells[1] if len(cells) > 1 else "N/A"
                             if collection_time not in ["N/A", ""]:
                                 configs[device_id]["collection_time"] = collection_time
-                
+    
                 elif current_section == "update_history":
                     # 更新历史表格
                     # 表格格式：| 时间 | 主机 | 变化摘要 |
                     if len(cells) >= 3:
                         # 修正summary错为cells整个list的错误，应该取第三个值，即cells
                         # 并对内容首位的*号做去除处理
-                        time_str, host_name, summary = cells[0], cells[1], cells[2].strip("*")
+                        time_str, host_name, summary = (
+                            cells[0],
+                            cells[1],
+                            cells[2].strip("*"),
+                        )
                         # 查找对应的设备ID
                         device_id = device_id_map.get(host_name)
                         if device_id:
@@ -1087,40 +1147,42 @@ class JoplinConfigManager:
                             if device_id not in update_records:
                                 update_records[device_id] = []
                             update_records[device_id].append(update_record)
-            
+    
             # 第四步：清理和验证解析结果
             valid_configs = {}
             for device_id, config in configs.items():
                 # 检查配置是否有有效数据
                 has_valid_data = False
-                
+    
                 # 检查系统信息
                 if config["system"]["host_user"] != "N/A":
                     has_valid_data = True
-                
+    
                 # 检查Python信息
                 if config["python"]["python_version"] != "N/A":
                     has_valid_data = True
-                
+    
                 # 检查库信息
                 if config["libraries"]:
                     for lib_version in config["libraries"].values():
                         if lib_version not in ["N/A", "Not installed", "Unknown"]:
                             has_valid_data = True
                             break
-                
+    
                 # 检查收集时间
                 if config["collection_time"] != "N/A":
                     has_valid_data = True
-                
+    
                 if has_valid_data:
                     valid_configs[device_id] = config
                     log.info(f"解析到有效配置: {config['system']['device_name']}")
                 else:
-                    log.warning(f"设备 {config['system']['device_name']} 的配置信息无效或为空")
-            
+                    log.warning(
+                        f"设备 {config['system']['device_name']} 的配置信息无效或为空"
+                    )
+    
             log.info(f"从Markdown表格解析了 {len(valid_configs)} 个有效主机的配置")
-            
+    
             # 打印解析结果摘要
             for device_id, config in valid_configs.items():
                 device_name = config["system"]["device_name"]
@@ -1128,13 +1190,16 @@ class JoplinConfigManager:
                 lib_count = len(config["libraries"])
                 collection_time = config.get("collection_time", "N/A")
                 update_count = len(update_records.get(device_id, []))
-                log.info(f"设备 {device_name}: Python={python_version}, 库数量={lib_count}, 收集时间={collection_time}, 更新记录数={update_count}")
-            
+                log.info(
+                    f"设备 {device_name}: Python={python_version}, 库数量={lib_count}, 收集时间={collection_time}, 更新记录数={update_count}"
+                )
+    
             return valid_configs, update_records
-            
+    
         except Exception as e:
             log.error(f"解析Markdown表格失败: {e}")
             import traceback
+    
             log.error(traceback.format_exc())
             return {}, {}
 
@@ -1574,10 +1639,12 @@ class JoplinConfigManager:
     ) -> Tuple[bool, str]:
         """更新Joplin笔记（增强版，综合所有主机更新记录）"""
         try:
-            # 检查配置是否有变化
+            # 如果没有变化，直接返回
             if not update_record.get("has_changes", False):
-                log.info(f"主机《{current_config['system']['device_name']}》的配置无变化")
-                return True, "配置无变化，无需更新笔记"
+                log.info(
+                    f"主机《{current_config['system']['device_name']}》的配置无变化，跳过笔记更新"
+                )
+                return True, "配置无变化，跳过笔记更新"
     
             # 从Joplin笔记中读取现有配置和更新记录
             joplin_config_collectors, joplin_update_records = (
@@ -1684,19 +1751,60 @@ def hostconfig2note():
         collector.show_config_summary()
         current_config = collector.config_data
 
-        # 2. 保存配置到本地并检测变化
+        # 2. 检查配置是否有变化
+        has_changes = True
+        summary = "配置收集完成"
+
+        # 检查本地配置文件是否存在
+        if collector.local_config_file.exists():
+            try:
+                with open(collector.local_config_file, "r", encoding="utf-8") as f:
+                    old_config = json.load(f)
+
+                # 比较新旧配置（忽略collection_time字段）
+                old_config_copy = old_config.copy()
+                current_config_copy = current_config.copy()
+
+                # 移除collection_time字段进行比较
+                old_config_copy.pop("collection_time", None)
+                current_config_copy.pop("collection_time", None)
+
+                # 比较两个配置是否相同
+                if old_config_copy == current_config_copy:
+                    has_changes = False
+                    summary = "无变化"
+                    log.info(f"配置无变化，跳过保存")
+                else:
+                    # 找出具体变化
+                    changes = []
+                    for key in ["system", "python", "libraries", "project"]:
+                        if key in old_config_copy and key in current_config_copy:
+                            if old_config_copy[key] != current_config_copy[key]:
+                                changes.append(key)
+                    if changes:
+                        summary = f"配置变化: {', '.join(changes)}"
+                    else:
+                        summary = "配置有细微变化"
+
+            except Exception as e:
+                log.warning(f"比较旧配置失败: {e}")
+
+        # 3. 保存配置到本地并检测变化
         update_record = {
             "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
             "device_id": current_config["system"]["device_id"],
             "device_name": current_config["system"]["device_name"],
-            "has_changes": True,  # 假设有变化，实际应该比较旧配置
-            "summary": "配置收集完成",
+            "has_changes": has_changes,
+            "summary": summary,
         }
 
-        # 保存配置
-        collector.save_to_file()
+        # 只有有变化时才保存配置
+        if has_changes:
+            collector.save_to_file()
+        else:
+            log.debug(f"跳过保存（无变化）: {collector.device_id}")
 
-        # 3. 更新Joplin笔记
+        # 4. 更新Joplin笔记
         joplin_manager = JoplinConfigManager()
         success, message = joplin_manager.update_joplin_note(
             current_config, update_record
