@@ -143,9 +143,8 @@ def get_libs_from_cloud(config_key: str) -> List[str]:
             "geopandas",
             "plotly",
             "dash",
-            "joplin",
+            "joppy",
             "pathmagic",
-            "arrow",
         ],
         "optional_libs": [
             "torch",
@@ -157,6 +156,9 @@ def get_libs_from_cloud(config_key: str) -> List[str]:
             "openai",
             "anthropic",
             "cohere",
+            "arrow",
+            "itchat",
+            "py2ifttt",
         ],
         "ai_libs": [
             "torch",
@@ -472,10 +474,26 @@ class HostConfigCollector(BaseConfigCollector):
         # 收集每个库的版本
         for lib_name in all_libs:
             try:
-                # 动态导入库
-                module = __import__(lib_name)
-                version = getattr(module, "__version__", "Unknown")
-                lib_versions[lib_name] = version
+                if lib_name == 'jupyter':
+                    jupyter_result = subprocess.run(
+                        ["jupyter", "--version"], capture_output=True, text=True, timeout=5
+                    )
+                    if jupyter_result.returncode == 0:
+                        sonliblist = [
+                            sonline.split(":")
+                            for sonline in jupyter_result.stdout.strip().split("\n")[1:]
+                        ]
+                        sonliblist = [[son[0].strip(), son[1].strip()] for son in sonliblist]
+                        print(sonliblist)
+                        for son in sonliblist:
+                            lib_versions[son[0]] = son[1]
+                    else:
+                        lib_versions["jupyter"] = "Not installed"
+                else:
+                    # 动态导入库
+                    module = __import__(lib_name)
+                    version = getattr(module, "__version__", "Unknown")
+                    lib_versions[lib_name] = version
             except ImportError:
                 lib_versions[lib_name] = "Not installed"
             except Exception as e:
@@ -512,6 +530,8 @@ class HostConfigCollector(BaseConfigCollector):
                 project_info["config_files"][config_file] = "Not found"
         
         return project_info
+
+# %%
 
 # %% [markdown]
 # ### HostConfigCollector 类 - 第四部分（配置管理方法）
@@ -632,7 +652,7 @@ class HostConfigCollector(BaseConfigCollector):
                 differences["libraries"][lib] = {"self": ver1, "other": ver2}
         
         return differences
-    
+
 
 # %% [markdown]
 # ### HostConfigCollector 类 - 第六部分（输出配置摘要）
@@ -1212,7 +1232,7 @@ class JoplinConfigManager:
 # ### JoplinConfigManager 类 - 第四部分（配置合并）
 
 # %% [markdown]
-# #### configs_are_equal(self, config1, config2)
+# #### _configs_are_equal(self, config1, config2)
 
     # %%
     def _configs_are_equal(self, config1, config2):
@@ -1562,10 +1582,11 @@ class JoplinConfigManager:
         # 定义库类别
         lib_categories = {
             "基础库": ["pandas", "numpy", "matplotlib", "seaborn", "scipy"],
-            "Jupyter": ["jupyter", "jupyterlab", "notebook"],
+            "Jupyter": ["IPython", "jupyter_core", "jupyterlab", "notebook"],
             "AI/ML": ["scikit-learn", "torch", "tensorflow", "keras", "pytorch"],
             "NLP": ["transformers", "langchain", "nltk", "spacy"],
-            "其他": ["geopandas", "plotly", "dash", "joplin", "pathmagic", "arrow"],
+            "HappyJoplin": ["joppy", "itchat", "py2ifttt", "pygsheets"],
+            "其他": ["geopandas", "plotly", "dash", "pathmagic", "arrow"],
         }
         
         for category, libs in lib_categories.items():
