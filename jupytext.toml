@@ -1,0 +1,9 @@
+# 默认格式：Markdown 与 Jupyter Notebook 双向同步
+# 打开 .md 时自动生成 .ipynb，编辑 .ipynb 时自动更新 .md
+formats = "ipynb,md"
+# 按标题（#/##/###）自动分割 cell
+split_at_heading = true
+# 不保留 cell 元数据（保持 ipynb 文件干净）
+cell_metadata_filter = "-all"
+# notebook 级元数据只保留 jupytext 相关，去掉 kernelspec（避免环境冲突）
+notebook_metadata_filter = "jupytext,-kernelspec"
