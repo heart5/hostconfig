@@ -212,5 +212,8 @@ __marimo__/
 # Claude Code
 .claude/
 
+# understand-anything 分析产物
+.understand-anything/
+
 # 文档含敏感信息，不公开
 docs/
